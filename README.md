@@ -1,0 +1,284 @@
+# Blogweb
+
+个人技术博客后端骨架，基于 Java 17、Spring Boot 3.5.16 和 Maven。
+
+## 当前范围
+
+- Spring MVC、参数校验、统一 JSON 响应及异常处理。
+- Spring Security、CSRF Token 接口、JSON 401/403。
+- MyBatis-Plus、MySQL、Flyway、Redis 和 Redis Session 的依赖及本地配置。
+- 应用探活和自动化启动/安全边界测试。
+
+已实现邮箱验证码注册、邮箱密码登录、当前用户查询和退出登录；没有预置账号。
+注册只创建 USER，管理员不能通过注册接口创建。
+除探活、CSRF、发送邮箱验证码、注册、登录和错误路径外，接口默认需要认证。Elasticsearch、MinIO、
+文章模块在相应功能开发时接入，当前未引入。
+
+## 环境
+
+JDK 17、Maven 3.6.3+；使用 local 配置还需要 MySQL 和 Redis。
+Docker Desktop 用于运行 compose.yml 中的本地依赖。
+
+## 快速启动（不需要数据库）
+
+在项目根目录执行：
+
+```powershell
+mvn spring-boot:run
+```
+
+默认启用 standalone 配置，仅验证 Web 和安全基础设施；不会连接 MySQL 或 Redis。
+打开 http://localhost:8080/api/health 可看到 Blogweb 和 UP。
+http://localhost:8080/actuator/health 是标准 Actuator 健康接口。
+根路径没有网页，前端尚未创建。
+
+## 连接 MySQL 和 Redis
+
+启动 Docker Desktop，然后在项目根目录执行：
+
+```powershell
+docker compose up -d --wait
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+也可以在 IDE 运行 BlogwebApplication，并将 Active profiles 设置为 local。
+数据库为 blogweb，宿主机 MySQL 端口 3306，Redis 端口 16379，HTTP 端口 8080。
+Redis 容器内部使用标准端口 6379，宿主机映射端口用于避免与已有服务冲突。
+默认密码仅供本机开发，见 compose.yml 和 application-local.yml。
+容器端口只绑定本机；持久化数据保存在 Docker 命名卷。
+停止依赖使用 `docker compose stop`，保留数据库内容。
+
+local 配置启用 Flyway 和 Redis Session：MySQL/Redis 应先启动。
+V1 初始化迁移记录，V2 创建 users 表，字段为 id、email、password、nickname、role、status。
+email 唯一且忽略大小写；password 原样保存前端提交的密码值；role 为 USER/ADMIN，status 为 1（正常）/0（禁用）。
+User 通过 MyBatis-Plus UserMapper 读写 MySQL，使用 Lambda 条件构造器绑定参数；密码字段不会被 Jackson 序列化。
+`/api/health` 仅表示 Web 服务可响应，`/actuator/health` 在 local 模式还检查数据库和 Redis。
+
+可通过 DB_HOST、DB_PORT、DB_NAME、DB_USERNAME、DB_PASSWORD、REDIS_HOST、
+REDIS_PORT、REDIS_PASSWORD、SERVER_PORT 环境变量覆盖配置。
+Docker Compose 的 .env 文件不会自动传递给宿主机运行的 Spring Boot；
+若修改凭证，需要同时设置运行 Java 进程的环境变量。已有数据库卷中的密码
+不会因修改 compose 配置自动改变。
+
+## 构建和测试
+
+```powershell
+mvn test
+mvn clean package
+java -jar target/blogweb-0.0.1-SNAPSHOT.jar
+# 使用真实本地依赖：
+java -jar target/blogweb-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
+```
+
+默认测试使用 standalone，不依赖外部服务；真实 MySQL/Redis 集成测试默认跳过，见下文。
+
+## 代码结构
+
+```text
+com.blogweb
+├── BlogwebApplication
+├── user                 用户 Controller、Service、Mapper、DTO、实体及基础设施
+├── common/api           统一响应
+├── common/exception     异常处理
+├── config               安全配置
+└── health               探活接口
+```
+
+业务逐步按模块增加 service、dto、mapper 等包，不预建空类。
+注册仅允许创建 USER；管理员通过受控初始化流程创建。
+浏览器使用 Cookie 会话认证，写请求需要先获取 `/api/csrf-token`，
+保留同一 Cookie，并将返回 token 放进 headerName 指定的请求头。
+standalone 会话在进程内存中，local 会话保存在 Redis。
+
+## QQ 邮箱验证码
+
+`POST /api/email-verification-codes`，JSON 请求体：`{"email":"你的QQ邮箱@qq.com"}`。
+目前接受以 .com 结尾的邮箱地址，如 @qq.com、@example.com，会去除首尾空格并统一为小写。
+此接口不要求登录，但保留 CSRF 保护。
+
+验证码为 SecureRandom 生成的六位数字（可能以 0 开头），Redis 保存 300 秒；
+同一邮箱 60 秒内只能请求一次，通过 Lua 原子设置验证码和发送冷却时间。
+重新发送成功后旧验证码被替换。SMTP 发送失败会清除本次验证码，保留冷却时间。
+响应仅包含有效期和重发间隔，不包含验证码；SMTP 接受邮件不代表最终投递成功。
+注册时原子校验并消费验证码，同一验证码只能成功使用一次；连续输错 5 次立即失效。
+
+使用步骤：在 QQ 邮箱网页设置中开启 SMTP 服务并取得授权码；MAIL_PASSWORD
+填写授权码而非 QQ 登录密码。不要将授权码写入代码或提交到 Git。
+QQ SMTP 使用 smtp.qq.com:465 和 SSL，连接、读取、写入超时各为 5 秒。
+
+在同一个 PowerShell 窗口设置环境变量并启动：
+
+```powershell
+$env:MAIL_USERNAME = '你的发件QQ邮箱@qq.com'
+# 隐藏输入授权码；仅传给当前 PowerShell 启动的进程。
+$mailCredential = Get-Credential -UserName $env:MAIL_USERNAME -Message '密码处填写 QQ SMTP 授权码'
+$env:MAIL_PASSWORD = $mailCredential.GetNetworkCredential().Password
+$env:EMAIL_CODE_ENABLED = 'true'
+docker compose up -d --wait
+mvn spring-boot:run "-Dspring-boot.run.profiles=local"
+```
+
+另开一个 PowerShell 窗口调用接口（将收件地址替换成实际 QQ 邮箱）：
+
+```powershell
+$csrf = Invoke-RestMethod 'http://localhost:8080/api/csrf-token' -SessionVariable blogwebSession
+$headers = @{}
+$headers[$csrf.data.headerName] = $csrf.data.token
+$body = @{ email = '收件QQ邮箱@qq.com' } | ConvertTo-Json
+Invoke-RestMethod 'http://localhost:8080/api/email-verification-codes' `
+    -Method Post -WebSession $blogwebSession -Headers $headers `
+    -ContentType 'application/json' -Body $body
+```
+
+成功返回 `{"code":"OK","message":"success","data":{"expiresInSeconds":300,"resendAfterSeconds":60}}`。
+无效邮箱返回 400；缺少 CSRF 返回 403；发送频繁返回 429；邮件未配置、Redis
+不可用或 SMTP 失败返回 503，业务错误码用于区分原因。未配置真实 SMTP 时不会模拟成功。
+默认 EMAIL_CODE_ENABLED=false，standalone 下没有 Redis，发送需使用 local 配置。
+邮件健康检查随 EMAIL_CODE_ENABLED 开关启用，未配置邮件时不影响基础健康检查。
+
+参考：[Spring Boot 邮件配置](https://docs.spring.io/spring-boot/3.5/reference/io/email.html)、
+[QQ 邮箱授权码说明](https://help.mail.qq.com/detail/106/985)。
+
+## 邮箱注册与登录
+
+使用 local 配置并启动 MySQL、Redis；真实发送验证码还需上面的 QQ SMTP 配置。
+发送验证码、注册及两种登录统一校验邮箱，要求账号@域名.com 格式；支持邮箱密码登录及邮箱验证码登录，密码登录不需要邮件验证码。
+
+1. `GET /api/csrf-token`：保留 Cookie，取得 CSRF Token。
+2. `POST /api/email-verification-codes`：发送注册验证码。
+3. `POST /api/users/register`：提交下面的注册 JSON，成功后不自动登录。
+4. `POST /api/sessions`：提交邮箱、密码；成功后保留更新后的会话 Cookie。
+5. `GET /api/users/me`：使用 Cookie 获取当前用户，无密码字段。
+6. 登录后重新 `GET /api/csrf-token`，用新 Token 调用 `DELETE /api/sessions/current`。
+
+注册请求：
+
+```json
+{
+  "email": "123456@qq.com",
+  "password": "YourPassword123!",
+  "nickname": "博主",
+  "code": "012345"
+}
+```
+
+登录请求：
+
+```json
+{
+  "email": "123456@qq.com",
+  "password": "YourPassword123!"
+}
+```
+
+所有写请求（POST、DELETE 等）均保留 CSRF 保护。邮箱去除首尾空格并转小写，昵称去除首尾空格。
+注册 password 字段长度为 8～255 个字符，登录最多 255 个字符，不修改其中的空格。
+密码值由前端处理后提交，后端原样保存并精确比对，不进行加密或哈希，响应只包含 id、email、nickname、role、status。
+客户端传入 role/status 不会影响注册权限，新用户固定为 USER、正常状态。
+
+错误码：重复邮箱 409/EMAIL_ALREADY_REGISTERED；验证码错误、过期、已使用或
+尝试次数耗尽 400/INVALID_EMAIL_CODE；密码错误、用户不存在或禁用统一返回
+401/INVALID_CREDENTIALS；未登录、会话过期或当前用户禁用时 `/api/users/me` 返回 401。
+同一邮箱每 15 分钟最多尝试登录 10 次（包括成功登录），超出返回 429/LOGIN_TOO_FREQUENT。
+数据库或 Redis 不可用返回 503，不降级绕过验证。
+
+登录会更新 Session ID，清除旧 CSRF Token；Redis Session 默认 30 分钟无活动过期。
+退出会使服务端会话失效。`/api/admin/**` 只允许 ADMIN 角色访问。
+验证码在写 MySQL 前消费；若随后数据库写入失败，需要等待冷却后重新发送验证码。
+
+真实依赖集成验证（模拟 EmailUtil 邮件发送，不会向真实邮箱发信）：
+
+```powershell
+docker compose up -d --wait
+$env:BLOGWEB_INTEGRATION_TEST = 'true'
+mvn test "-Dtest=UserInfrastructureTests"
+Remove-Item Env:BLOGWEB_INTEGRATION_TEST
+```
+
+集成测试会创建随机测试用户，验证数据库密码值原样存储、Redis 验证码原子消费和次数限制、
+真实 HTTP 会话登录/退出，并清理本次测试用户及验证码键。
+
+会话实现参考：[Spring Security 6.5 会话持久化](https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/session-management.html)。
+
+## MyBatis-Plus 数据访问
+
+使用 Spring Boot 3 专用的 `mybatis-plus-spring-boot3-starter`，版本 3.5.18。
+`User` 通过 `@TableName("users")` 映射表，`@TableId(type = IdType.AUTO)` 使用 MySQL 自增主键。
+`UserMapper` 标注 `@Mapper` 并继承 `BaseMapper<User>`，注册、登录和用户查询直接通过 Mapper 完成，
+不再使用自定义 UserRepository 或手写 JDBC。无需为基础增删改查编写 XML。
+local 模式有数据源时自动扫描 Mapper；standalone 没有数据源，业务接口仍返回数据库未配置错误。
+
+参考：[MyBatis-Plus 官方安装指南](https://baomidou.com/getting-started/install/)。
+
+## 邮件发送封装
+
+验证码路由调用链：`UserController → UserService.sendEmailCode → EmailUtil.sendCode`。
+`UserService` 管理安全随机验证码、Redis 限流和发送失败清理；`EmailUtil` 使用 Apache
+Commons Email Jakarta 版的 `SimpleEmail` 创建独立邮件对象并发送。
+`EmailConstant` 集中管理验证码位数、有效期、重发间隔、尝试次数、Redis 键前缀和邮件文案。
+SMTP 主机、端口、用户名、授权码、字符集、SSL 和超时从 `spring.mail` 配置读取，
+启用开关来自 `blogweb.email-code.enabled`，工具类不保存这些配置的硬编码值。
+现有 MAIL_USERNAME、MAIL_PASSWORD、EMAIL_CODE_ENABLED 环境变量及接口路径保持可用。
+
+参考：[Apache Commons Email SimpleEmail](https://commons.apache.org/proper/commons-email/commons-email2-jakarta/apidocs/org/apache/commons/mail2/jakarta/SimpleEmail.html)。
+
+## RESTful 用户模块
+
+- POST /api/users/register：创建普通用户，成功返回 201。
+- POST /api/sessions：校验邮箱密码并创建登录会话，成功返回 201。
+- GET /api/users/me：读取当前用户，成功返回 200。
+- DELETE /api/sessions/current：删除当前会话，成功返回 204，无响应体。
+- POST /api/email-verification-codes：创建并发送验证码，成功返回 201。
+- GET /api/csrf-token：取得 CSRF Token，成功返回 200。
+
+旧 /api/auth 下的动作式路由已移除，请按以上路径调用。注册和登录请求 JSON 不变。
+登录后须重新获取 CSRF Token，再调用 DELETE 退出接口。
+
+用户模块按 controller、service、mapper、entity、dto、infrastructure、security 分包。
+UserController / SessionController → UserService → UserMapper 是用户数据库操作调用链；
+Controller 不调用 Mapper，不编写业务规则或会话实现。
+UserService 调用 EmailUtil 发邮件，调用 UserSessionManager 管理 Spring Security 会话，
+调用 infrastructure 中的验证码存储和登录限流组件访问 Redis。
+CsrfController 只暴露 Spring Security 提供的 Token，不访问数据库。
+
+依赖注入统一使用 `@Autowired` 字段注入，配置值使用 `@Value`。需要在依赖就绪后执行的初始化逻辑使用 `@PostConstruct`，不再通过业务组件构造方法注入依赖。
+
+密码存储规则：前端在注册与登录时必须提交一致的处理结果。该结果本身是可用于登录的凭据。
+旧 BCrypt 数据无法还原为前端提交值；本次不会自动改写已有密码，旧账号需通过受控方式重置密码值或重新注册。
+V3 迁移仅更新 password 列注释，不改变已有数据。
+
+## 两种登录方式
+
+两种方式均创建相同的 Redis Session，成功返回 201，不返回密码或验证码。
+Controller → UserService → UserMapper 的调用结构与 @Autowired 注入方式保持一致。
+
+密码登录：`POST /api/sessions/loginbypassword`（原 `POST /api/sessions` 仍可用）。
+
+```json
+{"email":"123456@qq.com","password":"前端处理后的密码值"}
+```
+
+验证码登录先调用 `POST /api/email-verification-codes` 发送登录用途验证码：
+
+```json
+{"email":"123456@qq.com","purpose":"LOGIN"}
+```
+
+再调用 `POST /api/sessions/loginbycode`：
+
+```json
+{"email":"123456@qq.com","code":"012345"}
+```
+
+发送接口 purpose 支持 REGISTER / LOGIN，默认 REGISTER 以兼容已有注册请求。
+验证码存储按用途隔离，注册验证码不能登录，登录验证码不能注册。
+同一邮箱两种用途共享 60 秒发送冷却；有效期 5 分钟，最多输错 5 次，成功原子消费后不可重用。
+登录验证码错误、过期、已使用、账号不存在或禁用统一返回 401/INVALID_LOGIN_CODE。
+验证码登录不会自动创建用户；两种登录方式共享同一邮箱每 15 分钟最多 10 次的尝试限额。
+继续保留 CSRF 校验与 Cookie 会话；登录成功后重新获取 CSRF Token。
+注册接口为 `/api/users/register`，均只创建普通用户。
+
+邮箱格式统一通过 `EmailValidator.isValidEmail(String)` 独立方法进行正则完整匹配，
+并由 `@AccountEmail` 接入请求参数校验。允许 `user@qq.com`、`user@example.com`；
+拒绝多个 @、空账号、无效域名、非 .com 后缀及 .com 后继续追加后缀的输入。
+请求 DTO 仍先去除首尾空白并统一转小写，格式错误返回 HTTP 400。QQ SMTP 发件配置不变。
