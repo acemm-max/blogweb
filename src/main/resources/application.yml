@@ -1,28 +1,18 @@
 spring:
+  sql:
+    init:
+      mode: never
   application:
     name: Blogweb
   profiles:
-    default: standalone
-  mail:
-    host: smtp.qq.com
-    port: 465
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    default-encoding: UTF-8
-    properties:
-      "[mail.smtp.auth]": true
-      "[mail.smtp.ssl.enable]": true
-      "[mail.smtp.ssl.checkserveridentity]": true
-      "[mail.smtp.connectiontimeout]": 5000
-      "[mail.smtp.timeout]": 5000
-      "[mail.smtp.writetimeout]": 5000
+    default: local
   # Disable the generated development user; database authentication comes next.
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
 server:
-  port: ${SERVER_PORT:8080}
+  port: 8080
   servlet:
     session:
       timeout: 30m
@@ -33,16 +23,7 @@ server:
     include-message: never
     include-stacktrace: never
 
-blogweb:
-  email-executor:
-    queue-capacity: ${EMAIL_QUEUE_CAPACITY:100}
-  email-code:
-    enabled: ${EMAIL_CODE_ENABLED:false}
-
 management:
-  health:
-    mail:
-      enabled: ${EMAIL_CODE_ENABLED:false}
   endpoints:
     web:
       exposure:
