@@ -26,7 +26,8 @@ class EmailCodeControllerTests {
     void sendsToNormalizedEmailWithoutExposingCode() throws Exception {
         mvc.perform(post("/api/email-verification-codes").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\" 123456@QQ.COM \"}"))
-                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.expiresInSeconds").value(300))
+                .andExpect(status().isAccepted()).andExpect(jsonPath("$.data.status").value("QUEUED"))
+                .andExpect(jsonPath("$.data.expiresInSeconds").value(300))
                 .andExpect(jsonPath("$.data.code").doesNotExist());
         verify(service).sendEmailCode("123456@qq.com");
     }
@@ -63,7 +64,7 @@ class EmailCodeControllerTests {
     void loginPurposeIsPassedToUserService() throws Exception {
         mvc.perform(post("/api/email-verification-codes").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"123456@qq.com\",\"purpose\":\"LOGIN\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
         verify(service).sendEmailCode("123456@qq.com", com.blogweb.user.dto.EmailCodePurpose.LOGIN);
     }
 
@@ -79,7 +80,7 @@ class EmailCodeControllerTests {
     void acceptsOtherComDomains() throws Exception {
         mvc.perform(post("/api/email-verification-codes").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"user@example.com\"}"))
-                .andExpect(status().isCreated());
+                .andExpect(status().isAccepted());
         verify(service).sendEmailCode("user@example.com");
     }
 

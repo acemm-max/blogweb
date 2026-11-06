@@ -1,6 +1,7 @@
 package com.blogweb.config;
 
 import com.blogweb.common.api.ApiResponse;
+import com.blogweb.common.constant.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -37,9 +38,9 @@ public class SecurityConfig {
                 .csrf(config -> config.csrfTokenRepository(csrf))
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) ->
-                                writeError(objectMapper, response, 401, "UNAUTHORIZED", "Authentication required"))
+                                writeError(objectMapper, response, ErrorCode.UNAUTHORIZED))
                         .accessDeniedHandler((request, response, exception) ->
-                                writeError(objectMapper, response, 403, "FORBIDDEN", "Access denied")));
+                                writeError(objectMapper, response, ErrorCode.FORBIDDEN)));
         return http.build();
     }
 
@@ -54,10 +55,10 @@ public class SecurityConfig {
     }
 
     private static void writeError(ObjectMapper mapper, HttpServletResponse response,
-                                   int status, String code, String message) throws IOException {
-        response.setStatus(status);
+                                   ErrorCode errorCode) throws IOException {
+        response.setStatus(errorCode.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        mapper.writeValue(response.getOutputStream(), ApiResponse.error(code, message));
+        mapper.writeValue(response.getOutputStream(), ApiResponse.error(errorCode));
     }
 }

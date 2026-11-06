@@ -1,9 +1,0 @@
-com\blogweb\user\controller\EmailCodeControllerTests.class
-com\blogweb\common\util\EmailValidatorTests.class
-com\blogweb\BlogwebApplicationTests.class
-com\blogweb\user\service\UserServiceTests.class
-com\blogweb\user\UserInfrastructureTests.class
-com\blogweb\common\util\EmailUtilTests$1.class
-com\blogweb\common\util\EmailUtilTests.class
-com\blogweb\user\service\UserAuthenticationTests.class
-com\blogweb\user\controller\UserControllerTests.class

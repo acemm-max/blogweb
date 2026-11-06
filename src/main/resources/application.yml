@@ -34,6 +34,8 @@ server:
     include-stacktrace: never
 
 blogweb:
+  email-executor:
+    queue-capacity: ${EMAIL_QUEUE_CAPACITY:100}
   email-code:
     enabled: ${EMAIL_CODE_ENABLED:false}
 

@@ -98,7 +98,7 @@ standalone 会话在进程内存中，local 会话保存在 Redis。
 
 验证码为 SecureRandom 生成的六位数字（可能以 0 开头），Redis 保存 300 秒；
 同一邮箱 60 秒内只能请求一次，通过 Lua 原子设置验证码和发送冷却时间。
-重新发送成功后旧验证码被替换。SMTP 发送失败会清除本次验证码，保留冷却时间。
+重新发送成功后旧验证码被替换。后台 SMTP 发送失败会清除本次验证码，保留冷却时间。
 响应仅包含有效期和重发间隔，不包含验证码；SMTP 接受邮件不代表最终投递成功。
 注册时原子校验并消费验证码，同一验证码只能成功使用一次；连续输错 5 次立即失效。
 
@@ -130,9 +130,9 @@ Invoke-RestMethod 'http://localhost:8080/api/email-verification-codes' `
     -ContentType 'application/json' -Body $body
 ```
 
-成功返回 `{"code":"OK","message":"success","data":{"expiresInSeconds":300,"resendAfterSeconds":60}}`。
+成功返回 `{"code":"OK","message":"success","data":{"status":"QUEUED","expiresInSeconds":300,"resendAfterSeconds":60}}`。
 无效邮箱返回 400；缺少 CSRF 返回 403；发送频繁返回 429；邮件未配置、Redis
-不可用或 SMTP 失败返回 503，业务错误码用于区分原因。未配置真实 SMTP 时不会模拟成功。
+不可用或 队列满时返回 503，业务错误码用于区分原因。未配置真实 SMTP 时不会模拟成功。
 默认 EMAIL_CODE_ENABLED=false，standalone 下没有 Redis，发送需使用 local 配置。
 邮件健康检查随 EMAIL_CODE_ENABLED 开关启用，未配置邮件时不影响基础健康检查。
 
@@ -228,7 +228,7 @@ SMTP 主机、端口、用户名、授权码、字符集、SSL 和超时从 `spr
 - POST /api/sessions：校验邮箱密码并创建登录会话，成功返回 201。
 - GET /api/users/me：读取当前用户，成功返回 200。
 - DELETE /api/sessions/current：删除当前会话，成功返回 204，无响应体。
-- POST /api/email-verification-codes：创建并发送验证码，成功返回 201。
+- POST /api/email-verification-codes：提交验证码发送任务，成功返回 202。
 - GET /api/csrf-token：取得 CSRF Token，成功返回 200。
 
 旧 /api/auth 下的动作式路由已移除，请按以上路径调用。注册和登录请求 JSON 不变。
@@ -282,3 +282,30 @@ Controller → UserService → UserMapper 的调用结构与 @Autowired 注入�
 并由 `@AccountEmail` 接入请求参数校验。允许 `user@qq.com`、`user@example.com`；
 拒绝多个 @、空账号、无效域名、非 .com 后缀及 .com 后继续追加后缀的输入。
 请求 DTO 仍先去除首尾空白并统一转小写，格式错误返回 HTTP 400。QQ SMTP 发件配置不变。
+
+## 通用错误码
+
+`common.constant.ErrorCode` 统一维护 HTTP 状态、前端 code、默认 message。
+覆盖参数错误、未登录、无权限、资源不存在、请求方法不支持、冲突、媒体类型不支持、
+请求过于频繁、服务器异常、服务不可用和数据存储不可用。
+统一异常处理器和 Spring Security 的 401/403 响应已使用该枚举；未知 HTTP 状态保留 HTTP_状态码兜底。
+响应格式仍为 `{"code":"错误码","message":"提示信息","data":null}`。
+业务错误码由你配置：`BusinessException(HttpStatus, String code, String message)` 保留自定义入口，
+不会将业务错误统一覆盖为通用错误码，也不在 ErrorCode 中新增或分配业务错误码。
+
+## 验证码异步发送
+
+邮件使用独立的 Spring 线程池 emailExecutor，核心线程数和最大线程数均固定为 5，
+线程名为 blogweb-email-*，不使用请求线程发送 SMTP 邮件。任务队列默认容量 100，
+可用 EMAIL_QUEUE_CAPACITY 调整；队列满或线程池停止时立即拒绝，不退回请求线程执行。
+应用关闭时等待任务完成，最多等待 30 秒。
+
+发送接口返回 HTTP 202，data.status 为 QUEUED，表示任务已受理，不表示投递成功。
+配置校验、Redis 验证码保存及频率限制在提交前完成；配置或 Redis 错误仍同步返回。
+队列拒绝返回 HTTP 503 / HTTP_503，并清除本次验证码，保留发送冷却。
+后台发送失败无法改变已返回的 HTTP 响应，会记录不包含验证码或 SMTP 密钥的错误日志，
+并按本次 reservation 标识清理对应验证码，避免误删后续重发的验证码。
+排队任务执行前再次检查 reservation 和验证码是否有效，失效或被替换的任务直接跳过。
+验证码 5 分钟有效期从请求提交前写入 Redis 开始计算，包含排队时间。
+
+这是进程内队列，服务异常退出时尚未执行的任务不会持久化重放，用户可在冷却结束后重试。

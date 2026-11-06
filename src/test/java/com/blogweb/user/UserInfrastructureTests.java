@@ -48,15 +48,15 @@ class UserInfrastructureTests {
     void cleanup() {
         users.delete(Wrappers.<User>lambdaQuery().eq(User::getEmail, email));
         String prefix = "blogweb:auth:email:{" + email + "}:";
-        redis.delete(List.of(prefix + "code", prefix + "cooldown", prefix + "attempts", prefix + "login:code", prefix + "login:attempts", "blogweb:auth:login:" + email));
+        redis.delete(List.of(prefix + "code", prefix + "cooldown", prefix + "attempts", prefix + "login:code", prefix + "login:attempts", prefix + "reservation", prefix + "login:reservation", "blogweb:auth:login:" + email));
     }
 
     @Test
     void registerLoginAndDeleteSessionThroughRealHttp() throws Exception {
         refreshCsrf();
-        assertThat(request("POST", "/email-verification-codes", Map.of("email", email)).statusCode()).isEqualTo(201);
+        assertThat(request("POST", "/email-verification-codes", Map.of("email", email)).statusCode()).isEqualTo(202);
         var code = ArgumentCaptor.forClass(String.class);
-        verify(mail).sendCode(eq(email), code.capture());
+        verify(mail, timeout(5000)).sendCode(eq(email), code.capture());
         var registration = Map.of("email", email, "password", "TestPassword123!", "nickname", "Integration", "code", code.getValue());
         var registered = request("POST", "/users/register", registration);
         assertThat(registered.statusCode()).isEqualTo(201);
@@ -80,9 +80,9 @@ class UserInfrastructureTests {
         refreshCsrf();
         redis.delete("blogweb:auth:email:{" + email + "}:cooldown"); // Simulate passing resend interval.
         assertThat(request("POST", "/email-verification-codes", Map.of("email", email, "purpose", "LOGIN"))
-                .statusCode()).isEqualTo(201);
+                .statusCode()).isEqualTo(202);
         var loginCode = ArgumentCaptor.forClass(String.class);
-        verify(mail, times(2)).sendCode(eq(email), loginCode.capture());
+        verify(mail, timeout(5000).times(2)).sendCode(eq(email), loginCode.capture());
         var loginBody = Map.of("email", email, "code", loginCode.getAllValues().get(1));
         assertThat(request("POST", "/sessions/loginbycode", loginBody).statusCode()).isEqualTo(201);
         assertThat(request("GET", "/users/me", Map.of()).statusCode()).isEqualTo(200);
@@ -97,9 +97,17 @@ class UserInfrastructureTests {
     void redisCodeConsumptionAndLimitsRemainAtomic() throws Exception {
         assertThat(codes.reserve(email, "012345", "first")).isTrue();
         String prefix = "blogweb:auth:email:{" + email + "}:";
+        assertThat(codes.isCurrent(email, "first", EmailCodePurpose.REGISTER)).isTrue();
+        assertThat(codes.isCurrent(email, "other", EmailCodePurpose.REGISTER)).isFalse();
         assertThat(redis.getExpire(prefix + "code")).isBetween(295L, 300L);
         assertThat(redis.getExpire(prefix + "cooldown")).isBetween(55L, 60L);
         assertThat(codes.reserve(email, "654321", "second")).isFalse();
+        redis.delete(prefix + "cooldown");
+        assertThat(codes.isCurrent(email, "first", EmailCodePurpose.REGISTER)).isTrue();
+        assertThat(codes.reserve(email, "012345", "replacement")).isTrue();
+        assertThat(codes.isCurrent(email, "first", EmailCodePurpose.REGISTER)).isFalse();
+        codes.invalidate(email, "first");
+        assertThat(codes.isCurrent(email, "replacement", EmailCodePurpose.REGISTER)).isTrue();
         var pool = Executors.newFixedThreadPool(8);
         try {
             var tasks = new ArrayList<java.util.concurrent.Callable<Boolean>>();

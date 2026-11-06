@@ -12,6 +12,8 @@ import com.blogweb.user.dto.RegisterRequest;
 import com.blogweb.user.dto.UserResponse;
 import com.blogweb.user.entity.User;
 import com.blogweb.user.infrastructure.EmailCodeStore;
+import com.blogweb.user.infrastructure.EmailCodeDispatcher;
+import com.blogweb.common.constant.ErrorCode;
 import com.blogweb.user.infrastructure.LoginRateLimiter;
 import com.blogweb.user.mapper.UserMapper;
 import com.blogweb.user.security.UserSessionManager;
@@ -22,7 +24,7 @@ import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.UUID;
-import org.apache.commons.mail2.core.EmailException;
+import java.util.concurrent.RejectedExecutionException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
@@ -39,6 +41,8 @@ public class UserService {
     private LoginRateLimiter limiter;
     @Autowired
     private EmailUtil emailUtil;
+    @Autowired
+    private EmailCodeDispatcher emailDispatcher;
     @Autowired
     private UserSessionManager sessions;
     private final SecureRandom random = new SecureRandom();
@@ -158,15 +162,15 @@ public class UserService {
                     "EMAIL_CODE_TOO_FREQUENT", "Please wait " + EmailConstant.RESEND_INTERVAL_SECONDS + " seconds before requesting another code");
         }
         try {
-            emailUtil.sendCode(email, code);
-        } catch (EmailException exception) {
+            emailDispatcher.submit(email, code, reservationId, purpose);
+        } catch (RejectedExecutionException exception) {
             try {
                 if (purpose == EmailCodePurpose.REGISTER) codes.invalidate(email, reservationId);
                 else codes.invalidate(email, reservationId, purpose);
             } catch (RuntimeException ignored) {
                 // Redis TTL still bounds the lifetime if cleanup is unavailable.
             }
-            throw unavailable("EMAIL_SEND_FAILED", "Unable to send email; please try again later");
+            throw unavailable(ErrorCode.SERVICE_UNAVAILABLE.getCode(), "Email queue is full; please try again later");
         }
     }
 

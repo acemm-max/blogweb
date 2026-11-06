@@ -14,4 +14,6 @@ public interface EmailCodeStore {
     void invalidate(String email, String reservationId, EmailCodePurpose purpose);
 
     boolean consume(String email, String code, EmailCodePurpose purpose);
+
+    boolean isCurrent(String email, String reservationId, EmailCodePurpose purpose);
 }

@@ -32,13 +32,13 @@ public class UserController {
     }
 
     @PostMapping("/email-verification-codes")
-    @ResponseStatus(HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.ACCEPTED)
     public ApiResponse<SendResult> sendEmailCode(@Valid @RequestBody SendEmailCodeRequest request) {
         if (request.purpose() == EmailCodePurpose.REGISTER) service.sendEmailCode(request.email());
         else service.sendEmailCode(request.email(), request.purpose());
-        return ApiResponse.success(new SendResult(EmailConstant.CODE_TTL_SECONDS, EmailConstant.RESEND_INTERVAL_SECONDS));
+        return ApiResponse.success(new SendResult("QUEUED", EmailConstant.CODE_TTL_SECONDS, EmailConstant.RESEND_INTERVAL_SECONDS));
     }
 
-    public record SendResult(int expiresInSeconds, int resendAfterSeconds) {
+    public record SendResult(String status, int expiresInSeconds, int resendAfterSeconds) {
     }
 }

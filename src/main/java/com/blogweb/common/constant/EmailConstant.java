@@ -1,6 +1,7 @@
 package com.blogweb.common.constant;
 
 public final class EmailConstant {
+    public static final int MAIL_THREAD_COUNT = 5;
     public static final int CODE_BOUND = 1_000_000;
     public static final String CODE_FORMAT = "%06d";
     public static final int CODE_TTL_SECONDS = 300;
