@@ -33,11 +33,10 @@ public class EmailCodeDispatcher {
             try {
                 codes.invalidate(email, reservationId, purpose);
             } catch (RuntimeException cleanupFailure) {
-                log.warn("Email code cleanup failed; Redis TTL remains active (type={})",
-                        cleanupFailure.getClass().getSimpleName());
+                com.ziv.util.ErrorLogUtil.log(log, "Email code cleanup failed; Redis TTL remains active", cleanupFailure);
             }
             // Never log the credential, authorization code or SMTP exception text.
-            log.warn("Verification email failed (purpose={}, type={})", purpose, exception.getClass().getSimpleName());
+            com.ziv.util.ErrorLogUtil.log(log, "Verification email failed: purpose=" + purpose, exception);
         }
     }
 }

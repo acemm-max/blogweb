@@ -108,8 +108,23 @@ class UserControllerTests {
     void registrationValidatesInput() throws Exception {
         mvc.perform(post("/api/users/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"user@example.com\",\"password\":\"short\",\"nickname\":\"\",\"code\":\"123\"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("password: 密码长度必须为8到255个字符")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("nickname: 昵称不能为空")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("code: 验证码必须为6位数字")))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("short"))));
         verifyNoInteractions(codes);
+    }
+
+    @Test
+    void registrationRejectsInvalidOrExpiredCodeWithoutInsertingUser() throws Exception {
+        when(users.selectOne(any(Wrapper.class))).thenReturn(null);
+        when(codes.consume("654321@qq.com", "012345")).thenReturn(false);
+        mvc.perform(post("/api/users/register").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"654321@qq.com\",\"password\":\"TestPassword123!\",\"nickname\":\"Tester\",\"code\":\"012345\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("Verification code is invalid or expired"));
+        verify(users, never()).insert(any(User.class));
     }
     @Test
     void explicitPasswordEndpointCreatesSession() throws Exception {

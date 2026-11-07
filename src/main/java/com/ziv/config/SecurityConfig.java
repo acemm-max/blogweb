@@ -5,6 +5,9 @@ import com.ziv.exception.ErrorCode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.MediaType;
@@ -19,6 +22,7 @@ import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 
 @Configuration
 public class SecurityConfig {
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper,
@@ -38,9 +42,9 @@ public class SecurityConfig {
                 .csrf(config -> config.csrfTokenRepository(csrf))
                 .exceptionHandling(errors -> errors
                         .authenticationEntryPoint((request, response, exception) ->
-                                writeError(objectMapper, response, ErrorCode.UNAUTHORIZED))
+                                writeError(objectMapper, request, response, ErrorCode.UNAUTHORIZED, exception))
                         .accessDeniedHandler((request, response, exception) ->
-                                writeError(objectMapper, response, ErrorCode.FORBIDDEN)));
+                                writeError(objectMapper, request, response, ErrorCode.FORBIDDEN, exception)));
         return http.build();
     }
 
@@ -54,8 +58,10 @@ public class SecurityConfig {
         return new HttpSessionCsrfTokenRepository();
     }
 
-    private static void writeError(ObjectMapper mapper, HttpServletResponse response,
-                                   ErrorCode errorCode) throws IOException {
+    private static void writeError(ObjectMapper mapper, HttpServletRequest request, HttpServletResponse response,
+                                   ErrorCode errorCode, Exception exception) throws IOException {
+        log.warn("Security rejection: method={} path={} status={} type={} message={}",
+                request.getMethod(), request.getRequestURI(), errorCode.getCode(), exception.getClass().getSimpleName(), errorCode.getMessage());
         response.setStatus(errorCode.getHttpStatus().value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");

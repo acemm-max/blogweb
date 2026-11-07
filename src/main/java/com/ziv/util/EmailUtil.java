@@ -29,7 +29,7 @@ public class EmailUtil {
     public void sendCode(String recipient, String code) throws EmailException {
         validateConfiguration();
         SimpleEmail email = createEmail();
-        email.setFrom(EmailConstant.SMTP_USERNAME);
+        email.setFrom(EmailConstant.SMTP_USERNAME,EmailConstant.SMTP_NICKNAME);
         email.addTo(recipient);
         email.setSubject(EmailConstant.SUBJECT);
         email.setMsg(EmailConstant.BODY.formatted(code, EmailConstant.CODE_TTL_SECONDS / 60));

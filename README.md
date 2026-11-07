@@ -199,7 +199,7 @@ Remove-Item Env:BLOGWEB_INTEGRATION_TEST
 ## MyBatis-Plus 数据访问
 
 使用 Spring Boot 3 专用的 `mybatis-plus-spring-boot3-starter`，版本 3.5.18。
-`User` 通过 `@TableName("users")` 映射表，`@TableId(type = IdType.AUTO)` 使用 MySQL 自增主键。
+`User` 通过 `@TableName("users")` 映射表，`@TableId(type = IdType.ASSIGN_ID)` 使用 MyBatis-Plus 内置雪花算法生成 Long 主键。调用 mapper.insert(user) 时，MyBatis-Plus 为未设置 id 的用户生成 ID 并回填实体，数据库无需自增。注册请求不接收客户端指定的 id。
 `UserMapper` 标注 `@Mapper` 并继承 `BaseMapper<User>`，注册、登录和用户查询直接通过 Mapper 完成，
 不再使用自定义 UserRepository 或手写 JDBC。无需为基础增删改查编写 XML。
 local 模式有数据源时自动扫描 Mapper；standalone 没有数据源，业务接口仍返回数据库未配置错误。
@@ -376,6 +376,13 @@ standalone 模式 Token 关联内存会话，local 模式会话保存在 Redis�
 邮件仍从 EmailConstant 读取设置，固定 5 线程的异步发送及队列行为保持不变。
 
 
+## 控制台错误日志
+
+参数校验、HTTP 请求错误、业务错误及 401/403 安全拦截会记录请求路径、状态码和对应的校验或业务原因。
+数据库异常、未处理异常、Redis 调用失败、异步邮件发送失败和清理失败会记录操作上下文、异常类型、调用栈与原因链；SQL 异常另记录 SQLState 和数据库错误编号。
+日志不输出请求正文、密码、验证码、Cookie、Token、原始 SQL 参数或底层异常原文，避免驱动及 SMTP 异常携带敏感值。异步任务按操作和用途定位；接口参数错误不输出被拒绝的字段值。
+项目日志级别为 INFO，WARN 和 ERROR 默认输出到控制台。
+
 ## 手动维护数据库
 
 项目使用 MySQL + MyBatis-Plus，数据库结构通过手动 SQL 管理，已移除 Flyway。
@@ -383,8 +390,8 @@ standalone 模式 Token 关联内存会话，local 模式会话保存在 Redis�
 
 - 新数据库：先创建 blogweb 数据库，再选择该库手动执行 sql/users.sql。
 - 已有数据库：直接使用现有 users 表，不要重复执行建表 SQL。
-- 若现有 users.id 没有自增属性，需自行审核并执行 sql/enable-users-id-auto-increment.sql，
-  以配合 User 实体的 IdType.AUTO；应用不会自动修复。
+- users.id 使用 BIGINT 主键，由应用生成雪花 ID，无需 AUTO_INCREMENT。现有自增表也可接收应用生成的显式 ID，本次修改不会执行数据库 DDL 或改变已有用户 ID。
+- 雪花 ID 不是纯随机数，通常超过 JavaScript Number 的安全整数范围；前端接入时应以字符串保留 ID，避免精度丢失。
 - local 的 MySQL、Redis 地址及凭证以 application-local.yml 为准，使用 Docker Compose 示例时需对齐端口。
 
 正常启动即可，无需任何迁移或基线参数：

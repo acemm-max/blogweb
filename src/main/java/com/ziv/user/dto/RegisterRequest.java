@@ -8,13 +8,13 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class RegisterRequest {
-    @NotBlank @Size(max = 254)
+    @NotBlank(message = "邮箱不能为空") @Size(max = 254, message = "邮箱不能超过254个字符")
     private String email;
-    @NotBlank @Size(min = 8, max = 255)
+    @NotBlank(message = "密码不能为空") @Size(min = 8, max = 255, message = "密码长度必须为8到255个字符")
     private String password;
-    @NotBlank @Size(max = 64)
+    @NotBlank(message = "昵称不能为空") @Size(max = 64, message = "昵称不能超过64个字符")
     private String nickname;
-    @NotBlank @Pattern(regexp = "[0-9]{6}")
+    @NotBlank(message = "验证码不能为空") @Pattern(regexp = "[0-9]{6}", message = "验证码必须为6位数字")
     private String code;
 
     public RegisterRequest(String email, String password, String nickname, String code) {

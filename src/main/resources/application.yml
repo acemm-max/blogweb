@@ -1,3 +1,7 @@
+logging:
+  level:
+    com.ziv: INFO
+
 spring:
   sql:
     init:
