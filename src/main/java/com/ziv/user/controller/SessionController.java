@@ -35,7 +35,7 @@ public class SessionController {
         return ApiResponseUtil.success(service.createCodeSession(body, request, response));
     }
 
-    @DeleteMapping("/current")
+    @DeleteMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
         service.deleteSession(request, response, authentication);
