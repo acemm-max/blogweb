@@ -3,20 +3,61 @@ logging:
     com.ziv: INFO
 
 spring:
+  application:
+    name: Blogweb
+  datasource:
+    url: jdbc:mysql://localhost:23306/blogweb_integration?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: blogweb_test
+    password: blogweb_test_password
+  data:
+    redis:
+      host: localhost
+      port: 26379
+      password: blogweb_test_redis
+      connect-timeout: 3s
+      timeout: 3s
+  session:
+    timeout: 30m
+    redis:
+      namespace: blogweb:integration:session
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 11MB
   sql:
     init:
       mode: never
-  application:
-    name: Blogweb
-  profiles:
-    default: local
-  # Disable the generated development user; database authentication comes next.
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
 
+blogweb:
+  canal:
+    enabled: true
+    host: ${CANAL_HOST:localhost}
+    port: 21111
+    destination: ${CANAL_DESTINATION:example}
+    username: ${CANAL_USERNAME:}
+    password: ${CANAL_PASSWORD:}
+    schema: blogweb_integration
+    batch-size: 100
+    poll-delay-ms: 1000
+  search:
+    enabled: true
+    endpoint: http://localhost:29200
+    index: blogweb-integration-articles
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+  storage:
+    enabled: true
+    endpoint: http://localhost:29000
+    access-key: blogweb_test_minio
+    secret-key: blogweb_test_minio_password
+    bucket: blogweb-integration
+    url-expiry-seconds: 600
+
 server:
-  port: 8080
+  port: 28080
   servlet:
     session:
       timeout: 30m

@@ -18,9 +18,9 @@ class RequestJsonTests {
         assertThat(registration.getPassword()).isEqualTo(" password123 ");
         assertThat(registration.getCode()).isEqualTo("012345");
 
-        LoginRequest passwordLogin = mapper.readValue("""
+        LoginByPasswordRequest passwordLogin = mapper.readValue("""
                 {"email":" User@QQ.COM ","password":" password123 "}
-                """, LoginRequest.class);
+                """, LoginByPasswordRequest.class);
         assertThat(passwordLogin.getEmail()).isEqualTo("user@qq.com");
         assertThat(passwordLogin.getPassword()).isEqualTo(" password123 ");
 

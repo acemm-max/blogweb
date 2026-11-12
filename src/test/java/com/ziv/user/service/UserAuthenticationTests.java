@@ -78,18 +78,18 @@ class UserAuthenticationTests {
     @Test
     void validCredentialsCanLogin() {
         when(users.selectOne(any(Wrapper.class))).thenReturn(user(1));
-        assertThat(service.login(new LoginRequest(request.getEmail(), request.getPassword())).getId()).isEqualTo(1);
+        assertThat(service.login(new LoginByPasswordRequest(request.getEmail(), request.getPassword())).getId()).isEqualTo(1);
         verify(limiter).check(request.getEmail());
     }
 
     @Test
     void wrongPasswordUnknownEmailAndDisabledUserHaveSameError() {
-        LoginRequest login = new LoginRequest(request.getEmail(), request.getPassword());
+        LoginByPasswordRequest login = new LoginByPasswordRequest(request.getEmail(), request.getPassword());
         when(users.selectOne(any(Wrapper.class))).thenReturn(null)
                 .thenReturn(user(0)).thenReturn(user(1));
         assertInvalidCredentials(login);
         assertInvalidCredentials(login);
-        assertInvalidCredentials(new LoginRequest(request.getEmail(), "wrong-password"));
+        assertInvalidCredentials(new LoginByPasswordRequest(request.getEmail(), "wrong-password"));
     }
 
     @Test
@@ -104,7 +104,7 @@ class UserAuthenticationTests {
     void loginRateLimitStopsPasswordLookup() {
         doThrow(new BusinessException(org.springframework.http.HttpStatus.TOO_MANY_REQUESTS, 429, "Wait"))
                 .when(limiter).check(request.getEmail());
-        assertThatThrownBy(() -> service.login(new LoginRequest(request.getEmail(), request.getPassword())))
+        assertThatThrownBy(() -> service.login(new LoginByPasswordRequest(request.getEmail(), request.getPassword())))
                 .isInstanceOf(BusinessException.class);
         verifyNoInteractions(users);
     }
@@ -152,7 +152,7 @@ class UserAuthenticationTests {
         verifyNoInteractions(users, codes);
     }
 
-    private void assertInvalidCredentials(LoginRequest login) {
+    private void assertInvalidCredentials(LoginByPasswordRequest login) {
         assertThatThrownBy(() -> service.login(login)).isInstanceOfSatisfying(BusinessException.class,
                 error -> assertThat(error.getCode()).isEqualTo(401));
     }

@@ -2,6 +2,7 @@ package com.ziv.user.infrastructure;
 
 import com.ziv.util.EmailUtil;
 import com.ziv.user.dto.EmailCodePurpose;
+import com.ziv.util.ErrorLogUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -31,12 +32,13 @@ public class EmailCodeDispatcher {
             emailUtil.sendCode(email, code);
         } catch (Exception exception) {
             try {
+                //清除缓存，重新发送验证码
                 codes.invalidate(email, reservationId, purpose);
             } catch (RuntimeException cleanupFailure) {
-                com.ziv.util.ErrorLogUtil.log(log, "Email code cleanup failed; Redis TTL remains active", cleanupFailure);
+                ErrorLogUtil.log(log, "Email code cleanup failed; Redis TTL remains active", cleanupFailure);
             }
             // Never log the credential, authorization code or SMTP exception text.
-            com.ziv.util.ErrorLogUtil.log(log, "Verification email failed: purpose=" + purpose, exception);
+            ErrorLogUtil.log(log, "Verification email failed: purpose=" + purpose, exception);
         }
     }
 }

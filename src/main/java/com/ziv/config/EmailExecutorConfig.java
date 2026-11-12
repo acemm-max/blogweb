@@ -1,6 +1,7 @@
 package com.ziv.config;
 
 import com.ziv.constant.EmailConstant;
+
 import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

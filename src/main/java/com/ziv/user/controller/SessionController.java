@@ -1,7 +1,7 @@
 package com.ziv.user.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import com.ziv.user.dto.LoginRequest;
+import com.ziv.user.dto.LoginByPasswordRequest;
 import com.ziv.user.dto.LoginByCodeRequest;
 import com.ziv.user.dto.UserResponse;
 import com.ziv.user.service.UserService;
@@ -21,9 +21,9 @@ public class SessionController {
     private UserService service;
 
 
-    @PostMapping({"", "/loginbypassword"})
+    @PostMapping({"/loginbypassword"})
     @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<UserResponse> loginByPassword(@Valid @RequestBody LoginRequest body,
+    public ApiResponse<UserResponse> loginByPassword(@Valid @RequestBody LoginByPasswordRequest body,
             HttpServletRequest request, HttpServletResponse response) {
         return ApiResponseUtil.success(service.createSession(body, request, response));
     }

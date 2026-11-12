@@ -13,7 +13,9 @@ import org.springframework.stereotype.Component;
 public class RedisEmailCodeStore implements EmailCodeStore {
     // Reserve cooldown and code atomically so concurrent requests cannot both send.
     private static final DefaultRedisScript<Long> RESERVE = new DefaultRedisScript<>("""
-            if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+            if redis.call('EXISTS', KEYS[1]) == 1 then
+                return 0
+            end
             redis.call('SET', KEYS[1], ARGV[1], 'EX', %d)
             redis.call('SET', KEYS[2], ARGV[2], 'EX', %d)
             redis.call('SET', KEYS[4], ARGV[1], 'EX', %d)
@@ -41,7 +43,9 @@ public class RedisEmailCodeStore implements EmailCodeStore {
 
     private static final DefaultRedisScript<Long> CONSUME = new DefaultRedisScript<>("""
             local code = redis.call('GET', KEYS[2])
-            if not code then return 0 end
+            if not code then
+                return 0
+            end
             if code == ARGV[1] then
                 redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
                 return 1
@@ -50,7 +54,9 @@ public class RedisEmailCodeStore implements EmailCodeStore {
             if attempts == 1 then
                 redis.call('PEXPIRE', KEYS[3], redis.call('PTTL', KEYS[2]))
             end
-            if attempts >= %d then redis.call('DEL', KEYS[2], KEYS[3], KEYS[4]) end
+            if attempts >= %d then
+                redis.call('DEL', KEYS[2], KEYS[3], KEYS[4])
+            end
             return 0
             """.formatted(EmailConstant.MAX_CODE_ATTEMPTS), Long.class);
 

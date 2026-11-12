@@ -7,13 +7,13 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-public class LoginRequest {
+public class LoginByPasswordRequest {
     @NotBlank @Size(max = 254)
     private String email;
     @NotBlank @Size(max = 255)
     private String password;
 
-    public LoginRequest(String email, String password) {
+    public LoginByPasswordRequest(String email, String password) {
         setEmail(email);
         this.password = password;
     }

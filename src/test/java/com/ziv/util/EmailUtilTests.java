@@ -24,7 +24,7 @@ class EmailUtilTests {
         doNothing().when(sender).validateConfiguration();
         doReturn(email).when(sender).createEmail();
         sender.sendCode("recipient@qq.com", "012345");
-        verify(email).setFrom(EmailConstant.SMTP_USERNAME);
+        verify(email).setFrom(EmailConstant.SMTP_USERNAME, EmailConstant.SMTP_NICKNAME);
         verify(email).addTo("recipient@qq.com");
         verify(email).setSubject(EmailConstant.SUBJECT);
         verify(email).setMsg(EmailConstant.BODY.formatted("012345", EmailConstant.CODE_TTL_SECONDS / 60));

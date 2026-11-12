@@ -20,13 +20,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("local")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "blogweb.canal.enabled=false")
 @EnabledIfEnvironmentVariable(named = "BLOGWEB_INTEGRATION_TEST", matches = "true")
 class UserInfrastructureTests {
     @LocalServerPort int port;
@@ -62,15 +60,15 @@ class UserInfrastructureTests {
         assertThat(hash).isEqualTo("TestPassword123!");
         assertThat(codes.consume(email, code.getValue())).isFalse();
         assertThat(request("POST", "/users/register", registration).statusCode()).isEqualTo(409);
-        assertThat(request("POST", "/sessions", Map.of("email", email, "password", "wrong")).statusCode()).isEqualTo(401);
+        assertThat(request("POST", "/sessions/loginbypassword", Map.of("email", email, "password", "wrong")).statusCode()).isEqualTo(401);
         assertThat(request("POST", "/sessions/loginbypassword", Map.of("email", email, "password", "TestPassword123!")).statusCode()).isEqualTo(201);
         var me = request("GET", "/users/me", Map.of());
         assertThat(me.statusCode()).isEqualTo(200);
         assertThat(json.readTree(me.body()).at("/data/email").asText()).isEqualTo(email);
         assertThat(json.readTree(me.body()).at("/data/password").isMissingNode()).isTrue();
-        assertThat(request("DELETE", "/sessions/current", Map.of()).statusCode()).isEqualTo(403);
+        assertThat(request("DELETE", "/sessions/logout", Map.of()).statusCode()).isEqualTo(403);
         refreshCsrf();
-        var logout = request("DELETE", "/sessions/current", Map.of());
+        var logout = request("DELETE", "/sessions/logout", Map.of());
         assertThat(logout.statusCode()).isEqualTo(204);
         assertThat(logout.body()).isEmpty();
         assertThat(request("GET", "/users/me", Map.of()).statusCode()).isEqualTo(401);
@@ -84,7 +82,7 @@ class UserInfrastructureTests {
         assertThat(request("POST", "/sessions/loginbycode", loginBody).statusCode()).isEqualTo(201);
         assertThat(request("GET", "/users/me", Map.of()).statusCode()).isEqualTo(200);
         refreshCsrf();
-        assertThat(request("DELETE", "/sessions/current", Map.of()).statusCode()).isEqualTo(204);
+        assertThat(request("DELETE", "/sessions/logout", Map.of()).statusCode()).isEqualTo(204);
         refreshCsrf();
         assertThat(request("POST", "/sessions/loginbycode", loginBody).statusCode()).isEqualTo(401);
 

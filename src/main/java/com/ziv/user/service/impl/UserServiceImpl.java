@@ -8,7 +8,7 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.ziv.constant.EmailConstant;
 import com.ziv.exception.BusinessException;
 import com.ziv.util.EmailUtil;
-import com.ziv.user.dto.LoginRequest;
+import com.ziv.user.dto.LoginByPasswordRequest;
 import com.ziv.user.dto.LoginByCodeRequest;
 import com.ziv.user.dto.EmailCodePurpose;
 import com.ziv.user.dto.RegisterRequest;
@@ -87,11 +87,11 @@ public class UserServiceImpl implements UserService {
         }
     }
 
-    public UserResponse login(LoginRequest request) {
+    public UserResponse login(LoginByPasswordRequest request) {
         return loginByPassword(request);
     }
 
-    public UserResponse loginByPassword(LoginRequest request) {
+    public UserResponse loginByPassword(LoginByPasswordRequest request) {
         validateEmail(request.getEmail());
         limiter.check(request.getEmail());
         User user = findByEmail(request.getEmail());
@@ -137,6 +137,10 @@ public class UserServiceImpl implements UserService {
         return UserResponse.from(user);
     }
 
+    /**
+     * 校验邮箱格式
+     * @param email
+     */
     private void validateEmail(String email) {
         if (email == null || email.length() > 254 || !ACCOUNT_EMAIL_PATTERN.matcher(email).matches()) {
             throw new BusinessException(HttpStatus.BAD_REQUEST, ErrorCode.BAD_REQUEST.getCode(),
@@ -204,7 +208,7 @@ public class UserServiceImpl implements UserService {
     private BusinessException unavailable(int code, String message) {
         return new BusinessException(HttpStatus.SERVICE_UNAVAILABLE, code, message);
     }
-    public UserResponse createSession(LoginRequest body, HttpServletRequest request, HttpServletResponse response) {
+    public UserResponse createSession(LoginByPasswordRequest body, HttpServletRequest request, HttpServletResponse response) {
         UserResponse user = loginByPassword(body);
         sessions.create(user, request, response);
         return user;

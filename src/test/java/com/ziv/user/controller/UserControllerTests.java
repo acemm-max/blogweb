@@ -13,7 +13,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.context.ActiveProfiles;
+import com.ziv.IsolatedWebEnvironment;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -25,8 +25,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@ActiveProfiles("standalone")
+@IsolatedWebEnvironment
 class UserControllerTests {
+    @MockitoBean com.ziv.article.mapper.ArticleMapper articleMapper;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @MockitoBean UserMapper users;
@@ -52,7 +53,7 @@ class UserControllerTests {
         var session = (MockHttpSession) csrfResponse.getRequest().getSession(false);
         String oldSessionId = session.getId();
         String oldToken = mapper.readTree(csrfResponse.getResponse().getContentAsString()).at("/data/token").asText();
-        mvc.perform(post("/api/sessions").session(session).header("X-CSRF-TOKEN", oldToken)
+        mvc.perform(post("/api/sessions/loginbypassword").session(session).header("X-CSRF-TOKEN", oldToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"123456@QQ.COM\",\"password\":\"TestPassword123!\"}"))
                 .andExpect(status().isCreated()).andExpect(jsonPath("$.data.password").doesNotExist());
@@ -61,11 +62,11 @@ class UserControllerTests {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.password").doesNotExist());
         mvc.perform(get("/api/admin/example").session(session)).andExpect(status().isForbidden());
-        mvc.perform(delete("/api/sessions/current").session(session).header("X-CSRF-TOKEN", oldToken))
+        mvc.perform(delete("/api/sessions/logout").session(session).header("X-CSRF-TOKEN", oldToken))
                 .andExpect(status().isForbidden());
         var fresh = mvc.perform(get("/api/csrf-token").session(session)).andReturn();
         String newToken = mapper.readTree(fresh.getResponse().getContentAsString()).at("/data/token").asText();
-        mvc.perform(delete("/api/sessions/current").session(session).header("X-CSRF-TOKEN", newToken))
+        mvc.perform(delete("/api/sessions/logout").session(session).header("X-CSRF-TOKEN", newToken))
                 .andExpect(status().isNoContent());
         assertThat(session.isInvalid()).isTrue();
         mvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
@@ -99,7 +100,7 @@ class UserControllerTests {
 
     @Test
     void badPasswordReturns401WithoutCreatingAuthenticatedSession() throws Exception {
-        mvc.perform(post("/api/sessions").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+        mvc.perform(post("/api/sessions/loginbypassword").with(csrf()).contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"123456@qq.com\",\"password\":\"wrong-password\"}"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.code").value(401));
     }

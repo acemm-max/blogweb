@@ -33,6 +33,7 @@ public class SecurityConfig {
                                 "/api/sessions", "/api/sessions/loginbypassword", "/api/sessions/loginbycode").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/health", "/api/csrf-token", "/actuator/health", "/error").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/articles", "/api/articles/*").permitAll()
                         .anyRequest().authenticated())
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
