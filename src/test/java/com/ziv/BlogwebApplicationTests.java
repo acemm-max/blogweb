@@ -17,6 +17,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @IsolatedWebEnvironment
 class BlogwebApplicationTests {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private com.ziv.user.mapper.UserMapper userMapper;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
     private com.ziv.article.mapper.ArticleMapper articles;
 
     @Autowired

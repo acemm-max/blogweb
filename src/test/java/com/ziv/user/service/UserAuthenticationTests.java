@@ -24,9 +24,7 @@ class UserAuthenticationTests {
     @BeforeEach
     void setUp() {
         service = new UserServiceImpl();
-        var factory = new org.springframework.beans.factory.support.StaticListableBeanFactory(
-                java.util.Map.of("userMapper", users));
-        org.springframework.test.util.ReflectionTestUtils.setField(service, "users", factory.getBeanProvider(UserMapper.class));
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "userMapper", users);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "codes", codes);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "limiter", limiter);
     }

@@ -3,6 +3,7 @@ package com.ziv.user.service.impl;
 import com.ziv.user.service.UserService;
 import java.util.regex.Pattern;
 
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.ziv.constant.EmailConstant;
@@ -28,7 +29,6 @@ import java.security.MessageDigest;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.RejectedExecutionException;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
@@ -43,7 +43,7 @@ public class UserServiceImpl implements UserService {
             Pattern.CASE_INSENSITIVE);
 
     @Autowired
-    private ObjectProvider<UserMapper> users;
+    private UserMapper userMapper;
     @Autowired
     private EmailCodeStore codes;
     @Autowired
@@ -79,7 +79,7 @@ public class UserServiceImpl implements UserService {
         user.setRole("USER");
         user.setStatus(1);
         try {
-            mapper().insert(user);
+            userMapper.insert(user);
             return UserResponse.from(user);
         } catch (DuplicateKeyException exception) {
             com.ziv.util.ErrorLogUtil.log(log, "Registration insert conflicted with an existing key", exception);
@@ -131,7 +131,7 @@ public class UserServiceImpl implements UserService {
             log.warn("Invalid user principal: type={}", exception.getClass().getSimpleName());
             throw unauthenticated();
         }
-        User user = mapper().selectById(id);
+        User user = userMapper.selectById(id);
         if (user == null) throw unauthenticated();
         if (!Integer.valueOf(1).equals(user.getStatus())) throw unauthenticated();
         return UserResponse.from(user);
@@ -149,16 +149,7 @@ public class UserServiceImpl implements UserService {
     }
 
     private User findByEmail(String email) {
-        return mapper().selectOne(Wrappers.<User>lambdaQuery().eq(User::getEmail, email));
-    }
-
-    private UserMapper mapper() {
-        UserMapper mapper = users.getIfAvailable();
-        if (mapper == null) {
-            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
-                    ErrorCode.SERVICE_UNAVAILABLE.getCode(), "Database is not configured; use the local profile");
-        }
-        return mapper;
+        return userMapper.selectOne(Wrappers.<User>lambdaQuery().eq(User::getEmail, email));
     }
 
     private BusinessException duplicateEmail() {
@@ -172,6 +163,11 @@ public class UserServiceImpl implements UserService {
         sendEmailCode(email, EmailCodePurpose.REGISTER);
     }
 
+    /**
+     * 发送验证码
+     * @param email
+     * @param purpose
+     */
     public void sendEmailCode(String email, EmailCodePurpose purpose) {
         validateEmail(email);
         emailUtil.validateConfiguration();
